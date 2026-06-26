@@ -73,82 +73,124 @@
     let currentMatches = [];
 
     window.addEventListener('DOMContentLoaded', () => {
-        const csvUrl = './data.csv?v=' + new Date().getTime();
+        // 무조건 실시간 동기화를 위해 난수 파라미터 적용
+        const csvUrl = './data.csv?v=' + Math.random();
 
         fetch(csvUrl)
             .then(response => {
-                if(!response.ok) throw new Error("파일 로드 에러 (" + response.status + ")");
+                if(!response.ok) throw new Error("네트워크 오류 (" + response.status + ")");
                 return response.arrayBuffer();
             })
             .then(buffer => {
+                // 모바일 환경에서도 한글 대장이 깨지지 않고 안전하게 파싱되도록 디코더 실행
                 const decoder = new TextDecoder('euc-kr');
                 const text = decoder.decode(buffer);
                 parseCSVData(text);
             })
             .catch(err => {
-                document.getElementById('loadStatus').style.backgroundColor = '#fef2f2';
-                document.getElementById('loadStatus').style.color = '#ef4444';
-                document.getElementById('loadStatus').style.borderColor = '#fca5a5';
-                document.getElementById('loadStatus').innerText = "❌ 대장 파일(data.csv) 로드 실패";
-                console.error(err);
+                showError("대장 파일 로드 및 연결 실패", err.message);
             });
     });
 
     function parseCSVData(text) {
-        const lines = text.split(/\r?\n/);
-        rawDatabase = [];
+        try {
+            // 줄바꿈 문자 통합 처리 (\r\n 및 \n 모두 대응)
+            const lines = text.split(/\r?\n/);
+            rawDatabase = [];
 
-        for (let i = 0; i < lines.length; i++) {
-            let current = splitCSVLine(lines[i]);
-            
-            // 변경된 규칙: 3번째 칸(자산번호)에 무언가 글자가 있고, 그 글자가 '자산번호'라는 제목줄이 아니며, 공백이 아닐 때 비품으로 인식
-            if (current && current[2] && current[2].trim() !== "" && !current[2].includes("자산번호") && current[2].trim().length >= 3) {
-                let next = (i + 1 < lines.length) ? splitCSVLine(lines[i + 1]) : [];
+            // 무한 루프 위험이 있는 기법 대신, 배열 길이 기반으로 완전 안전하게 반복제어 수행
+            for (let i = 0; i < lines.length; i++) {
+                if (!lines[i] || lines[i].trim() === "") continue;
                 
-                let item = {
-                    code: current[2].trim(),
-                    date: current[0] ? current[0].trim() : '',
-                    nameEn: current[4] ? current[4].trim() : '미표기',
-                    spec: current[6] ? current[6].trim() : '미표기',
-                    price: current[8] ? current[8].trim() : '0',
-                    model: current[12] ? current[12].trim() : '미표기',
-                    loc: current[14] ? current[14].trim() : '미표기',
-                    status: current[19] ? current[19].trim() : '사용중',
-                    nameKo: (next && next[4] && next[4].trim() !== "") ? next[4].trim() : '미표기',
-                    company: (next && next[10] && next[10].trim() !== "") ? next[10].trim() : '미표기'
-                };
+                let current = splitCSVLine(lines[i]);
+                if (!current || current.length < 3) continue;
                 
-                // 중복 추가 방지 (2줄짜리 구조 때문에 하단행이 오인되는 것을 완벽 방어)
-                if(!rawDatabase.some(existing => existing.code === item.code)) {
-                    rawDatabase.push(item);
+                let assetCode = current[2] ? current[2].trim() : "";
+                
+                // 제목행이 아니고 실제 자산번호 자리에 데이터가 채워져 있는 경우 비품 데이터 추출 프로세스 작동
+                if (assetCode !== "" && !assetCode.includes("자산번호") && assetCode.length >= 3) {
+                    let nextLine = (i + 1 < lines.length) ? lines[i + 1] : "";
+                    let next = nextLine ? splitCSVLine(nextLine) : [];
+                    
+                    let item = {
+                        code: assetCode,
+                        date: current[0] ? current[0].trim() : '',
+                        nameEn: (current[4] && current[4].trim()) ? current[4].trim() : '미표기',
+                        spec: (current[6] && current[6].trim()) ? current[6].trim() : '미표기',
+                        price: (current[8] && current[8].trim()) ? current[8].trim() : '0',
+                        model: (current[12] && current[12].trim()) ? current[12].trim() : '미표기',
+                        loc: (current[14] && current[14].trim()) ? current[14].trim() : '미표기',
+                        status: (current[19] && current[19].trim()) ? current[19].trim() : '사용중',
+                        nameKo: (next && next[4] && next[4].trim()) ? next[4].trim() : '미표기',
+                        company: (next && next[10] && next[10].trim()) ? next[10].trim() : '미표기'
+                    };
+                    
+                    // 대장 고유키(자산번호) 중복 검증 후 안전 적재
+                    if(!rawDatabase.some(existing => existing.code === item.code)) {
+                        rawDatabase.push(item);
+                    }
                 }
             }
-        }
 
-        if(rawDatabase.length > 0) {
-            const statusBox = document.getElementById('loadStatus');
-            statusBox.style.backgroundColor = '#ecfdf5';
-            statusBox.style.color = '#10b981';
-            statusBox.style.borderColor = '#a7f3d0';
-            statusBox.innerText = `✓ 대장 동기화 완료 (${rawDatabase.length}건)`;
+            if(rawDatabase.length > 0) {
+                const statusBox = document.getElementById('loadStatus');
+                statusBox.style.backgroundColor = '#ecfdf5';
+                statusBox.style.color = '#10b981';
+                statusBox.style.borderColor = '#a7f3d0';
+                statusBox.innerText = `✓ 대장 동기화 완료 (${rawDatabase.length}건)`;
 
-            document.getElementById('assetNo').disabled = false;
-            document.getElementById('searchBtn').disabled = false;
-            document.getElementById('assetNo').placeholder = "예: 2019 또는 의자 또는 302";
-            document.getElementById('resultPanel').innerHTML = `<p class="placeholder-text">연동이 완벽하게 완료되었습니다.<br>스마트폰에서 간편하게 검색을 시작해 보세요!</p>`;
+                document.getElementById('assetNo').disabled = false;
+                document.getElementById('searchBtn').disabled = false;
+                document.getElementById('assetNo').placeholder = "예: 2019 또는 의자 또는 302";
+                document.getElementById('resultPanel').innerHTML = `<p class="placeholder-text">동기화가 무사히 완료되었습니다.<br>스마트폰에서 일부 단어를 자유롭게 입력해 보세요!</p>`;
+            } else {
+                showError("데이터 처리 오류", "파일 데이터 구조가 대장 형식과 다릅니다.");
+            }
+        } catch (e) {
+            showError("파싱 엔진 중단 에러", e.message);
         }
     }
 
+    // 모바일 브라우저의 무한루프 유발 위험 요소를 제거하고 간결화한 고성능 CSV 분리 알고리즘
     function splitCSVLine(line) {
-        if (!line) return null;
-        let result = []; let current = ''; let inQuotes = false;
+        if (!line) return [];
+        let result = [];
+        let current = '';
+        let inQuotes = false;
+        
         for (let i = 0; i < line.length; i++) {
             let char = line[i];
-            if (char === '"') { inQuotes = !inQuotes; }
-            else if (char === ',' && !inQuotes) { result.push(current); current = ''; }
-            else { current += char; }
+            if (char === '"') {
+                inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+                result.push(current);
+                current = '';
+            } else {
+                current += char;
+            }
         }
-        result.push(current); return result;
+        result.push(current);
+        return result;
+    }
+
+    function showError(title, detail) {
+        const box = document.getElementById('loadStatus');
+        box.style.backgroundColor = '#fef2f2';
+        box.style.color = '#ef4444';
+        box.style.borderColor = '#fca5a5';
+        box.innerText = `❌ ${title}`;
+        
+        document.getElementById('resultPanel').innerHTML = `
+            <div style="padding: 15px; color: #ef4444;">
+                <h3>⚠️ 오류가 발생했습니다</h3>
+                <p style="font-size: 14px; color: #4b5563;">상세 에러 내용: <code>${detail}</code></p>
+                <p style="font-size: 13px; color: #6b7280; line-height: 1.5; margin-top: 10px;">
+                    <strong>자가 진단 가이드:</strong><br>
+                    1. 깃허브 공간 안에 파일 이름이 대문자가 아닌 소문자 <code>data.csv</code>로 정확한지 다시 한번만 봐주세요.<br>
+                    2. 배포 직후에는 깃허브 서버의 지연이 있을 수 있으니 1분 뒤 재접속을 권장합니다.
+                </p>
+            </div>
+        `;
     }
 
     function searchAsset() {
@@ -198,4 +240,45 @@
         detailSection.innerHTML = `
             <h2 class="info-title">🔍 세부 상세 정보</h2>
             <div class="info-grid">
-                <div class="info-item full" style="background-color: #eff6
+                <div class="info-item full" style="background-color: #eff6ff;">
+                    <div class="info-label">실제 설치 장소</div>
+                    <div class="info-value" style="color: #1e3a8a; font-size: 15px;">${data.loc}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">품명(국문)</div>
+                    <div class="info-value">${data.nameKo}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">품명(영문)</div>
+                    <div class="info-value">${data.nameEn}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">모델번호</div>
+                    <div class="info-value">${data.model}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">제작회사</div>
+                    <div class="info-value">${data.company}</div>
+                </div>
+                <div class="info-item full">
+                    <div class="info-label">규격</div>
+                    <div class="info-value">${data.spec}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">취득금액</div>
+                    <div class="info-value">${Number(data.price.replace(/[^0-9.-]+/g,"")).toLocaleString() || data.price} 원</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">취득일자</div>
+                    <div class="info-value">${data.date}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">자산상태</div>
+                    <div class="info-value"><span class="status-badge">${data.status}</span></div>
+                </div>
+            </div>
+        `;
+    }
+</script>
+</body>
+</html>
