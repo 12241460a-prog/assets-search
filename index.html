@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>교육혁신팀 비품 자산조사 앱</title>
+    <style>
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif, '맑은 고딕'; }
+        body { margin: 0; padding: 0; background-color: #f3f4f6; color: #1f2937; }
+        header { background-color: #1e3a8a; color: white; padding: 15px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        header h1 { margin: 0; font-size: 18px; font-weight: bold; }
+        header p { margin: 5px 0 0 0; font-size: 12px; opacity: 0.8; }
+        .container { display: flex; max-width: 1200px; margin: 20px auto; gap: 20px; padding: 0 15px; }
+        .search-panel { flex: 1; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); height: fit-content; }
+        .result-panel { flex: 1.2; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); min-height: 350px; display: flex; flex-direction: column; }
+        label { display: block; font-weight: bold; margin-bottom: 8px; color: #4b5563; font-size: 14px; }
+        .search-row { display: flex; gap: 8px; margin-bottom: 15px; }
+        input[type="text"] { flex: 1; padding: 12px; border: 2px solid #d1d5db; border-radius: 8px; font-size: 16px; outline: none; text-transform: uppercase; }
+        input[type="text"]:focus { border-color: #3b82f6; }
+        .btn-search { padding: 0 20px; background-color: #1e3a8a; color: white; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; font-weight: bold; }
+        .btn-search:hover { background-color: #1d4ed8; }
+        .info-title { font-size: 16px; font-weight: bold; color: #1e3a8a; border-bottom: 2px solid #f3f4f6; padding-bottom: 8px; margin: 0 0 15px 0; }
+        .placeholder-text { margin: auto; color: #9ca3af; text-align: center; font-size: 14px; line-height: 1.6; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .info-item { background-color: #f9fafb; padding: 10px; border-radius: 6px; border-left: 4px solid #3b82f6; }
+        .info-item.full { grid-column: span 2; }
+        .info-label { font-size: 11px; color: #6b7280; margin-bottom: 2px; }
+        .info-value { font-size: 14px; font-weight: 600; color: #1f2937; word-break: break-all; }
+        .status-badge { display: inline-block; padding: 2px 6px; background-color: #10b981; color: white; border-radius: 4px; font-size: 11px; }
+        .tips { margin-top: 15px; font-size: 12px; color: #6b7280; border-top: 1px dashed #e5e7eb; padding-top: 10px; }
+        .tip-tag { display: inline-block; background: #e5e7eb; padding: 3px 6px; border-radius: 4px; margin: 2px; cursor: pointer; font-size: 11px; }
+        .tip-tag:hover { background: #cbd5e1; }
+        @media (max-width: 768px) {
+            .container { flex-direction: column; margin: 10px auto; gap: 15px; }
+            .result-panel { min-height: auto; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>교육혁신팀 비품 자산조사 앱</h1>
+    <p>자산번호를 입력하면 실제설치장소 및 세부 내역이 표시됩니다.</p>
+</header>
+
+<div class="container">
+    <div class="search-panel">
+        <label for="assetNo">자산번호 입력</label>
+        <div class="search-row">
+            <input type="text" id="assetNo" placeholder="예: 2019K234U" onkeypress="if(event.key === 'Enter') searchAsset()">
+            <button class="btn-search" onclick="searchAsset()">검색</button>
+        </div>
+        <div class="tips">
+            <strong>💡 자주 찾는 자산번호 예시 (클릭):</strong><br>
+            <span class="tip-tag" onclick="quickSearch('2019K234U')">2019K234U</span>
+            <span class="tip-tag" onclick="quickSearch('20195577U')">20195577U</span>
+            <span class="tip-tag" onclick="quickSearch('20172469U')">20172469U</span>
+            <span class="tip-tag" onclick="quickSearch('20172970U')">20172970U</span>
+            <span class="tip-tag" onclick="quickSearch('20237673U')">20237673U</span>
+        </div>
+    </div>
+
+    <div class="result-panel" id="resultPanel">
+        <p class="placeholder-text">자산번호를 입력해 주세요.<br>결과 화면이 여기에 표시됩니다.</p>
+    </div>
+</div>
+
+<script>
+    // 스프레드시트 완벽 정제 데이터베이스
+    const db = {
+        "2019K234U": { date: "2020-02-26", nameKo: "의자(열람용)", nameEn: "CHAIR", spec: "580*600*905", price: "200,000", model: "CH2811", company: "선진산업", loc: "예술관씨동-3-302(DKU아너스라운지)", status: "사용중" },
+        "2019K224U": { date: "2020-02-26", nameKo: "의자(열람용)", nameEn: "CHAIR", spec: "580*600*905", price: "200,000", model: "CH2811", company: "선진산업", loc: "예술관씨동-3-302(DKU아너스라운지)", status: "사용중" },
+        "20195577U": { date: "2019-08-30", nameKo: "탁자(회의용, 8인용)", nameEn: "MEETING TABLE", spec: "2400*1200*720", price: "220,000", model: "미표기", company: "선진산업(주)", loc: "예술관씨동-3-302(DKU아너스라운지)", status: "사용중" },
+        "20172469U": { date: "2017-07-01", nameKo: "냉방기", nameEn: "AIR CONDITIONER", spec: "15평형 (1,200*138*450)", price: "1,650,000", model: "ND060HXB1", company: "삼성전자", loc: "예술관씨동-3-303(CTL라온)", status: "사용중" },
+        "20172470U": { date: "2017-07-01", nameKo: "모니터(24/액정)", nameEn: "MONITOR(24/LCD)", spec: "24인치", price: "233,750", model: "LS24E45KFSA", company: "삼성전자", loc: "예술관씨동-3-303(CTL라온)", status: "사용중" },
+        "20172968U": { date: "2017-07-01", nameKo: "서랍장(2단)", nameEn: "CABINET", spec: "800*414*797", price: "144,835", model: "CAC082D", company: "우림", loc: "예술관씨동-3-303(CTL라온)", status: "사용중" },
+        "20172476U": { date: "2017-07-01", nameKo: "컴퓨터(P-4)", nameEn: "PERSONAL COMPUTER", spec: "단가계약(P400T6A)", price: "673,750", model: "DB400T6A", company: "삼성전자", loc: "예술관씨동-3-303(CTL라온)", status: "사용중" },
+        "20172969U": { date: "2017-07-01", nameKo: "책장(5단오픈)", nameEn: "BOOKSHELF", spec: "800*314*1889", price: "176,000", model: "CAC085N", company: "우림", loc: "예술관씨동-3-303(CTL라온)", status: "사용중" },
+        "20172970U": { date: "2017-07-01", nameKo: "책장(5단오픈)", nameEn: "미표기", spec: "800*314*1889", price: "176,000", model: "CAC085N", company: "우림", loc: "예술관씨동-3-307(DKU아너스센터)", status: "사용중" },
+        "20172971U": { date: "2017-07-01", nameKo: "책장(5단오픈)", nameEn: "미표기", spec: "800*314*1889", price: "176,000", model: "CAC085N", company: "우림", loc: "예술관씨동-3-307(DKU아너스센터)", status: "사용중" },
+        "20237673U": { date: "2024-02-27", nameKo: "책장(5단오픈)", nameEn: "BOOK CHEST", spec: "800*380*1900", price: "154,000", model: "SJC-1951A", company: "선진산업", loc: "예술관씨동-3-307(DKU아너스센터)", status: "사용중" },
+        "2019C491U": { date: "2020-01-10", nameKo: "컴퓨터(i3)", nameEn: "PERSONAL COMPUTER(i3)", spec: "DB400T8A", price: "722,500", model: "DB400T8A", company: "미표기", loc: "예술관씨동-3-307(DKU아너스센터)", status: "사용중" }
+    };
+
+    function quickSearch(val) {
+        document.getElementById('assetNo').value = val;
+        searchAsset();
+    }
+
+    function searchAsset() {
+        const query = document.getElementById('assetNo').value.trim().toUpperCase();
+        const panel = document.getElementById('resultPanel');
+        if(!query) { alert('자산번호를 입력해 주세요.'); return; }
+
+        const data = db[query];
+        if(data) {
+            panel.innerHTML = `
+                <h2 class="info-title">🔍 조회 결과 [${query}]</h2>
+                <div class="info-grid">
+                    <div class="info-item full" style="background-color: #eff6ff;">
+                        <div class="info-label">실제 설치 장소</div>
+                        <div class="info-value" style="color: #1e3a8a; font-size: 15px;">${data.loc}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">품명(국문)</div>
+                        <div class="info-value">${data.nameKo}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">품명(영문)</div>
+                        <div class="info-value">${data.nameEn}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">모델번호</div>
+                        <div class="info-value">${data.model}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">제작회사</div>
+                        <div class="info-value">${data.company}</div>
+                    </div>
+                    <div class="info-item full">
+                        <div class="info-label">규격</div>
+                        <div class="info-value">${data.spec}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">취득금액</div>
+                        <div class="info-value">${data.price} 원</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">취득일자</div>
+                        <div class="info-value">${data.date}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">자산상태</div>
+                        <div class="info-value"><span class="status-badge">${data.status}</span></div>
+                    </div>
+                </div>
+            `;
+        } else {
+            panel.innerHTML = `
+                <h2 class="info-title" style="color: #ef4444;">❌ 조회 실패</h2>
+                <p class="placeholder-text" style="color: #ef4444;">
+                    자산번호 <strong>"${query}"</strong>를 찾을 수 없습니다.<br>번호가 정확한지 다시 확인해 주세요.
+                </p>
+            `;
+        }
+    }
+</script>
+</body>
+</html>
